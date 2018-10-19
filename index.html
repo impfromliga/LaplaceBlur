@@ -1,0 +1,55 @@
+<canvas id=cnv></canvas>
+<script>
+	const x01 = 0x010101, x7f = 0x7f7f7f, opaque = 0xff000000;
+	var buf8, buf32, ctx = cnv.getContext('2d',{alpha:false});
+	ctx.fillStyle = '#fff';
+	ctx.fillText('DROP FILES HERE:',10,50);
+	onclick = expBlur7r;
+	function expBlur7r(ev){
+		ev.preventDefault();
+		var start = (new Date()).getTime();
+		var w = cnv.width, h = cnv.height;
+		var idat = ctx.getImageData(0,0,w,h);
+		buf8.set(idat.data);
+		//1st:
+		for(var idx = h * w; idx > 0; idx -= w)
+			for(var t = 0, i = idx -w, n = w; n--; i++)
+				buf32[i] = t = (x01 + t >> 1 & x7f) + (buf32[i] >> 1 & x7f);
+		for(var idx = h * w, t = 0, i = idx -1, n = w; n--; i--)
+			buf32[i] = (t = (x01 + t >> 1 & x7f) + (buf32[i] >> 1 & x7f))>>1 &x7f;
+		//2nd-3rd:
+		for(idx -= w; idx > 0; idx -= w)
+			for(var t = 0, i = idx -1, n = w; n--; i--)
+				buf32[i] = (x01 + buf32[i+w] >> 1 & x7f) + ((t = (x01 + t >> 1 & x7f) + (buf32[i] >> 1 & x7f)) >> 1 & x7f);
+		//4th:
+		for(var idx = w; idx--;)
+			for(var t = 0, i = idx, n = h; n--; i+=w)
+				buf32[i] = (t = (x01 + t >> 1 & x7f) + (buf32[i] >> 1 & x7f)) | opaque; //opaque for process alpha
+
+		idat.data.set(buf8);
+		ctx.putImageData(idat,0,0);
+		console.log((new Date()).getTime() - start + 'ms');
+	}
+	//DRAG & DROP:
+	window.addEventListener('dragover',function(ev){ ev.preventDefault(); })
+	window.addEventListener('drop',function(ev){
+		ev.preventDefault();
+		var files = ev.dataTransfer ? [].map.call(ev.dataTransfer.items, function(v){return v.getAsFile()}): [].slice.call(ev.target.files);
+		files.forEach(function(f){
+			if(!f.type.match('^image/')) return;
+			console.log(f);
+			var reader = new FileReader();
+			reader.onload = function(e){
+				var img = new Image();
+				img.onload = function(){
+					var buf = new ArrayBuffer((cnv.width = img.naturalWidth)*(cnv.height = img.naturalHeight)*4);
+					buf8 = new Uint8ClampedArray(buf);
+					buf32 = new Uint32Array(buf);
+					ctx.drawImage(img, 0,0);
+				}
+				img.src = e.target.result;
+			}
+			reader.readAsDataURL(f);
+		})
+	})
+</script>
